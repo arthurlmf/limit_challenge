@@ -208,8 +208,7 @@ Authentication using JWT is not required but welcome if time allows.
 
 ## Implemented backend: running and reviewing the solution
 
-The required backend is implemented in the existing `backend/fleet` app. The optional
-React frontend and JWT bonus are not implemented. No additional runtime dependencies
+The required backend is implemented in the existing `backend/fleet` app. The React frontend is implemented in `frontend/`; No additional runtime dependencies
 were needed. SQLite remains the default database, as supplied by the starter project.
 
 ### Run locally
@@ -374,3 +373,26 @@ curl -X POST 'http://127.0.0.1:8000/api/vehicles/' \
   size and memory cost. The separate paginated history endpoint is the scalable
   client workflow. Office totals use a single relationship chain with a distinct
   vehicle count; summing distinct costs would incorrectly drop equal-priced services.
+
+
+## Implemented frontend
+
+See [frontend/README.md](frontend/README.md) for setup, architecture, browser tests
+and tradeoffs. The UI includes vehicle search, CRUD for all four resources,
+vehicle details, office moves and the maintenance-due workflow.
+
+```bash
+cd backend_focused/frontend  # from the repository root
+npm ci
+npm run dev
+```
+
+Open <http://localhost:3000> with Django running on port 8000.
+
+Frontend checks: `npm run typecheck`, `npm run lint`, `npm run format`,
+`npm run build`, and `npm run test:e2e` (install Chromium first with
+`npx playwright install chromium`). Browser tests start an isolated Django database.
+
+A short [frontend demonstration](docs/fleet-demo.webm) is included. It shows the
+frontend working end-to-end with the real Django API on disposable sample data.
+Regenerate it with `npm run demo` from `frontend/`.

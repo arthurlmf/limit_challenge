@@ -1,33 +1,50 @@
 'use client';
-
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
-import { PropsWithChildren, useMemo, useState } from 'react';
+import { PropsWithChildren, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-function useTheme() {
-  return useMemo(
+import axios from 'axios';
+const theme = createTheme({
+  palette: {
+    primary: { main: '#24594b' },
+    background: { default: '#f5f6f2', paper: '#ffffff' },
+    text: { primary: '#1d302a', secondary: '#65746c' },
+    success: { main: '#387753' },
+  },
+  typography: {
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    h3: { fontWeight: 700, fontSize: '2.25rem', letterSpacing: '-0.06em' },
+    h6: { fontWeight: 600 },
+    button: { textTransform: 'none', fontWeight: 600 },
+    overline: { fontWeight: 700, letterSpacing: '0.13em' },
+  },
+  shape: { borderRadius: 10 },
+  components: {
+    MuiButton: { defaultProps: { disableElevation: true } },
+    MuiPaper: { defaultProps: { elevation: 0, variant: 'outlined' } },
+    MuiTableCell: {
+      styleOverrides: {
+        head: { backgroundColor: '#edf1eb', color: '#526459', fontWeight: 700 },
+        root: { borderColor: '#edf0eb' },
+      },
+    },
+  },
+});
+export default function Providers({ children }: PropsWithChildren) {
+  const [client] = useState(
     () =>
-      createTheme({
-        palette: {
-          primary: {
-            main: '#0f62fe',
-          },
-          background: {
-            default: '#f5f7fb',
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: (count, error) =>
+              count < 1 &&
+              !(axios.isAxiosError(error) && error.response && error.response.status < 500),
           },
         },
-        shape: { borderRadius: 8 },
       }),
-    [],
   );
-}
-
-export default function Providers({ children }: PropsWithChildren) {
-  const theme = useTheme();
-  const [queryClient] = useState(() => new QueryClient());
-
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
         {children}
