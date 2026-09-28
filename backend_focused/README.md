@@ -3,7 +3,7 @@
 A fleet maintenance application built with Django REST Framework and Next.js.
 It supports vehicle, office, mechanic and maintenance management, including vehicle
 search with duplicate detection, office transfers, an office summary, mechanic workload
-and a maintenance-due view.
+and a maintenance-due view. The API and UI are protected with JWT authentication.
 
 [Watch the demo](docs/fleet-demo.webm) · [API reference](docs/API.md) ·
 [Original challenge](CHALLENGE.md)
@@ -11,7 +11,7 @@ and a maintenance-due view.
 ## Run locally
 
 Requires Python 3.10+ supported by Django 5.2 and Node.js 20.9+.
-The backend uses SQLite. Authentication is not implemented.
+The backend uses SQLite.
 
 From the repository root, start the backend:
 
@@ -28,7 +28,9 @@ python manage.py runserver 127.0.0.1:8000
 The seed command ensures three offices exist and adds five mechanics and the requested
 number of vehicles with Faker-generated VINs, plates and names, including inactive,
 overdue and never-serviced examples. Rerunning it adds data; it does not clear
-existing records.
+existing records. It also creates the login **`demo` / `demo-password`** if that user
+does not exist yet (change it with `--username` and `--password`). To create another
+account, run `python manage.py createsuperuser`.
 
 In a second terminal, from the repository root:
 
@@ -38,8 +40,10 @@ npm ci
 npm run dev
 ```
 
-Open [the frontend](http://localhost:3000) or
-[DRF's browsable API](http://127.0.0.1:8000/api/).
+Open [the frontend](http://localhost:3000) and sign in with the demo account. To use
+[DRF's browsable API](http://127.0.0.1:8000/api/), first sign in at
+[/api-auth/login/](http://127.0.0.1:8000/api-auth/login/). API clients such as `curl`
+use a Bearer token; see the [API reference](docs/API.md#authentication).
 For a different backend URL, copy `frontend/.env.example` to `frontend/.env.local`
 and change `NEXT_PUBLIC_API_BASE_URL` before starting Next.js.
 
@@ -53,8 +57,8 @@ python manage.py check
 python manage.py makemigrations --check --dry-run
 ```
 
-Backend tests cover validation, reporting boundaries, database constraints and
-query counts, including vehicle detail with 301 maintenance records.
+Backend tests cover authentication, validation, reporting boundaries, database
+constraints and query counts, including vehicle detail with 301 maintenance records.
 
 From `backend_focused/frontend`:
 
@@ -67,12 +71,22 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser tests exercise the real API using a temporary database. They cover CRUD,
-URL-driven search, duplicate warnings, reports, maintenance-due updates and failure
-handling. Ports 3100 and 8011 must be free. See the [frontend guide](frontend/README.md)
+Browser tests exercise the real API using a temporary database. They cover sign-in,
+sign-out and token refresh, CRUD, URL-driven search, duplicate warnings, reports,
+maintenance-due updates and failure handling. Ports 3100 and 8011 must be free. See the [frontend guide](frontend/README.md)
 for Python selection and test reports.
 
 ## Main decisions and limitations
+
+- **Authentication:** JWT via `djangorestframework-simplejwt`,  Every endpoint requires a signed-in user; there are no roles, since the brief
+  defines none. Access tokens last 15 minutes and refresh tokens one day. Refresh tokens
+  rotate on every use and are blacklisted afterwards and on logout, so signing out
+  revokes the session server-side.
+- **Token storage:** the frontend keeps the access token in memory and the refresh
+  token in `localStorage`, so sessions survive a reload. The tradeoff is that a
+  successful XSS attack could read the refresh token. Moving it to an `HttpOnly`,
+  `SameSite` cookie would close that gap at the cost of CSRF handling; I chose the
+  simpler option for this scope.
 
 - **Uniqueness:** database constraints enforce unique VINs and plates among active
   vehicles. The duplicate-check endpoint is advisory: the vehicle form uses it to warn

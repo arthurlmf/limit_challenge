@@ -13,17 +13,35 @@ interface Created {
   [key: string]: unknown;
 }
 
+export const DEMO_USER = { username: 'demo', password: 'demo-password' };
+
+async function obtainTokens(request: APIRequestContext) {
+  const response = await request.post(`${API_URL}/auth/token/`, { data: DEMO_USER });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return (await response.json()) as { access: string; refresh: string };
+}
+
 class Api {
-  constructor(private request: APIRequestContext) {}
+  constructor(
+    private request: APIRequestContext,
+    private access: string,
+  ) {}
+
+  private get headers() {
+    return { Authorization: `Bearer ${this.access}` };
+  }
 
   async post(resource: string, data: object): Promise<Created> {
-    const response = await this.request.post(`${API_URL}/${resource}/`, { data });
+    const response = await this.request.post(`${API_URL}/${resource}/`, {
+      data,
+      headers: this.headers,
+    });
     expect(response.status(), await response.text()).toBe(201);
     return response.json();
   }
 
   async get<T>(path: string): Promise<T> {
-    const response = await this.request.get(`${API_URL}/${path}`);
+    const response = await this.request.get(`${API_URL}/${path}`, { headers: this.headers });
     expect(response.ok()).toBeTruthy();
     return response.json();
   }
@@ -61,7 +79,20 @@ class Api {
   }
 }
 
-export const test = base.extend<{ api: Api }>({
-  api: async ({ request }, use) => use(new Api(request)),
+export const test = base.extend<{ api: Api; loggedIn: boolean }>({
+  loggedIn: [true, { option: true }],
+  api: async ({ request }, use) => use(new Api(request, (await obtainTokens(request)).access)),
+  page: async ({ page, request, loggedIn }, use) => {
+    if (loggedIn) {
+      // A fresh refresh token per test: rotation revokes a token after one use.
+      const { refresh } = await obtainTokens(request);
+      await page.addInitScript((token) => {
+        if (!localStorage.getItem('fleet.refreshToken')) {
+          localStorage.setItem('fleet.refreshToken', token);
+        }
+      }, refresh);
+    }
+    await use(page);
+  },
 });
 export { expect };
