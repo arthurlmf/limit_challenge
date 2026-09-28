@@ -12,6 +12,14 @@ with tempfile.TemporaryDirectory(prefix="fleet-browser-tests-") as directory:
     settings.DATABASES["default"]["NAME"] = str(Path(directory) / "test.sqlite3")
     settings.ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
     settings.CORS_ALLOWED_ORIGINS = ["http://127.0.0.1:3100"]
+    # Expected 4xx responses would otherwise flood the Playwright output.
+    settings.LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "loggers": {
+            name: {"level": "ERROR"} for name in ("django.request", "django.server")
+        },
+    }
     import django
     django.setup()
     from django.core.management import call_command

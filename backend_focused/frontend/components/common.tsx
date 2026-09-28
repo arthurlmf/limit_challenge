@@ -270,3 +270,8 @@ export function dateLabel(value: string | null) {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 export const text = (data: FormData, name: string) => String(data.get(name) ?? '').trim();
+const moneyFormat = new Intl.NumberFormat('en', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+export const money = (value: string) => moneyFormat.format(Number(value));

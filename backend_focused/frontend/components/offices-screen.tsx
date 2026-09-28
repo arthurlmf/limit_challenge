@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import {
   Alert,
@@ -14,17 +15,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Typography,
 } from '@mui/material';
 import { fleetApi } from '@/lib/fleet-api';
-import { useUrlPage } from '@/lib/hooks';
 import type { Office } from '@/lib/types';
-import { DeleteDialog, Empty, Failure, Loading, PageHeading, Pager } from './common';
+import { dateLabel, DeleteDialog, Empty, Failure, Loading, money, PageHeading } from './common';
 import { OfficeForm } from './forms';
 export default function OfficesScreen() {
-  const { page, setPage } = useUrlPage();
   const query = useQuery({
-    queryKey: ['fleet', 'offices', page],
-    queryFn: ({ signal }) => fleetApi.offices(page, signal),
+    queryKey: ['fleet', 'office-summary'],
+    queryFn: ({ signal }) => fleetApi.officeSummary(signal),
   });
   const [editing, setEditing] = useState<Office | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Office | null>(null);
@@ -33,7 +33,7 @@ export default function OfficesScreen() {
     <>
       <PageHeading
         title="Offices"
-        description="The places your fleet calls home."
+        description="Where your fleet is based, how much of it is active and what it costs to maintain."
         action={
           <Button variant="contained" size="large" onClick={() => setEditing('new')}>
             + Add office
@@ -46,48 +46,75 @@ export default function OfficesScreen() {
         ) : query.isError ? (
           <Box p={3}>
             <Failure error={query.error} retry={() => query.refetch()} />
-            <Button onClick={() => setPage(1)}>Return to first page</Button>
           </Box>
-        ) : (
+        ) : query.data.length ? (
           <>
-            {query.data.results.length ? (
-              <TableContainer>
-                <Table aria-label="Offices">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Office name</TableCell>
-                      <TableCell>City</TableCell>
-                      <TableCell align="right">Actions</TableCell>
+            <Stack direction="row" justifyContent="space-between" px={3} py={2}>
+              <Typography variant="h6">
+                Office summary{' '}
+                <Typography component="span" color="text.secondary">
+                  / {query.data.length}
+                </Typography>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {query.isFetching ? 'Updating…' : 'Spending covers the last 12 months'}
+              </Typography>
+            </Stack>
+            <TableContainer>
+              <Table aria-label="Offices" sx={{ minWidth: 760 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Office</TableCell>
+                    <TableCell align="right">Active vehicles</TableCell>
+                    <TableCell align="right">Maintenance, last 12 months</TableCell>
+                    <TableCell>Last maintenance</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {query.data.map((office) => (
+                    <TableRow key={office.id} hover>
+                      <TableCell>
+                        <Typography fontWeight={600}>{office.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {office.city}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Link href={`/vehicles?office=${office.id}&active=true`}>
+                          {office.active_vehicle_count}
+                        </Link>
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {money(office.maintenance_cost_last_year)}
+                      </TableCell>
+                      <TableCell>
+                        {office.last_maintenance ? dateLabel(office.last_maintenance) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" justifyContent="flex-end">
+                          <Button onClick={() => setEditing(office)}>Edit</Button>
+                          <Button color="error" onClick={() => setDeleting(office)}>
+                            Delete
+                          </Button>
+                        </Stack>
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {query.data.results.map((office) => (
-                      <TableRow key={office.id} hover>
-                        <TableCell sx={{ fontWeight: 600 }}>{office.name}</TableCell>
-                        <TableCell>{office.city}</TableCell>
-                        <TableCell>
-                          <Stack direction="row" justifyContent="flex-end">
-                            <Button onClick={() => setEditing(office)}>Edit</Button>
-                            <Button color="error" onClick={() => setDeleting(office)}>
-                              Delete
-                            </Button>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Empty
-                title="No offices yet"
-                description="Create an office to start organizing your vehicles."
-              />
-            )}
-            <Pager count={query.data.count} page={page} onChange={setPage} />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </>
+        ) : (
+          <Empty
+            title="No offices yet"
+            description="Create an office to start organizing your vehicles."
+          />
         )}
       </Paper>
+      <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+        Spending includes inactive vehicles and is attributed to each vehicle&apos;s current office.
+      </Typography>
       {editing && (
         <OfficeForm
           office={editing === 'new' ? undefined : editing}
@@ -106,7 +133,6 @@ export default function OfficesScreen() {
           onClose={() => setDeleting(null)}
           onDeleted={() => {
             setDeleting(null);
-            setPage(1);
             setNotice('Office deleted.');
           }}
         />

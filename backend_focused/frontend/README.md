@@ -1,7 +1,8 @@
 # Fleet frontend
 
 Next.js and Material UI interface for the fleet API. Includes vehicle search,
-CRUD for all four resources, maintenance history, office transfers and maintenance due.
+CRUD for all four resources, maintenance history, office transfers, maintenance due,
+the office summary, mechanic workload and duplicate VIN/plate warnings in the vehicle form.
 
 ## Run
 
@@ -27,8 +28,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Playwright starts Next.js on port 3100 and Django on port 8011, with migrations and
-sample data in a temporary database. Both ports must be free.
+Playwright builds and starts Next.js on port 3100 and Django on port 8011, with
+migrations and sample data in a temporary database. Both ports must be free. The build
+overwrites `.next/` with one pointing at the test API; `npm run dev` is unaffected.
 
 The runner uses `../backend/.venv/bin/python` if present, otherwise `python3`.
 That environment needs the backend requirements installed. To select another Python:
@@ -37,8 +39,9 @@ That environment needs the backend requirements installed. To select another Pyt
 FLEET_TEST_PYTHON=/absolute/path/to/python npm run test:e2e
 ```
 
-Tests cover CRUD, URL filters, cache refresh, validation, protected deletion,
-network recovery, reference-data pagination and mobile layout. Failure screenshots,
+Specs live in `tests/e2e/` and cover CRUD, URL filters that survive a reload, server
+validation errors, duplicate warnings, protected deletion, the office summary, mechanic
+workload, maintenance due, network recovery and mobile layout. Failure screenshots,
 videos and traces go to `test-results/`. Open the report with `npx playwright show-report`.
 
 ## Code organization
@@ -51,11 +54,4 @@ which is suitable for the small reference datasets in this challenge.
 
 ## Demo
 
-[Watch the recording](../docs/fleet-demo.webm). To regenerate the video and screenshots:
-
-```bash
-npm run demo
-```
-
-This uses the same isolated backend setup and Python selection as the tests.
-Output is written to `../docs/`. The recording is silent and under two minutes.
+[Watch the recording](../docs/fleet-demo.webm).

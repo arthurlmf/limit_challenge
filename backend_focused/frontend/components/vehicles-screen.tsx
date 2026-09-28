@@ -159,7 +159,7 @@ export default function VehiclesScreen() {
             </Stack>
           </Box>
           <Typography variant="caption" display="block" color="text.secondary" mt={2}>
-            Make and model use exact matches. Date and mechanic filters apply to the same service
+            Make and model match partial text. Date and mechanic filters apply to the same service
             record.
           </Typography>
         </Box>

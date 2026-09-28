@@ -14,12 +14,65 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Typography,
 } from '@mui/material';
 import { fleetApi } from '@/lib/fleet-api';
 import { useUrlPage } from '@/lib/hooks';
 import type { Mechanic } from '@/lib/types';
-import { DeleteDialog, Empty, Failure, Loading, PageHeading, Pager, Status } from './common';
+import { DeleteDialog, Empty, Failure, Loading, money, PageHeading, Pager, Status } from './common';
 import { MechanicForm } from './forms';
+function Workload() {
+  const query = useQuery({
+    queryKey: ['fleet', 'workload'],
+    queryFn: ({ signal }) => fleetApi.workload(signal),
+  });
+  const year = new Date().getFullYear();
+  return (
+    <Paper sx={{ mb: 3 }}>
+      <Stack direction="row" justifyContent="space-between" px={3} py={2}>
+        <Typography variant="h6">Workload in {year}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {query.isFetching ? 'Updating…' : 'Busiest first'}
+        </Typography>
+      </Stack>
+      {query.isPending ? (
+        <Loading />
+      ) : query.isError ? (
+        <Box px={3} pb={3}>
+          <Failure error={query.error} retry={() => query.refetch()} />
+        </Box>
+      ) : query.data.some((row) => row.maintenance_count > 0) ? (
+        <TableContainer sx={{ maxHeight: 320 }}>
+          <Table aria-label="Mechanic workload" size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Mechanic</TableCell>
+                <TableCell align="right">Services completed</TableCell>
+                <TableCell align="right">Value of work</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {query.data.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>{row.name}</TableCell>
+                  <TableCell align="right">{row.maintenance_count}</TableCell>
+                  <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {money(row.total_maintenance_cost)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Empty
+          title={`No maintenance recorded in ${year}`}
+          description="Completed services appear here as they are recorded."
+        />
+      )}
+    </Paper>
+  );
+}
 export default function MechanicsScreen() {
   const { page, setPage } = useUrlPage();
   const query = useQuery({
@@ -40,6 +93,7 @@ export default function MechanicsScreen() {
           </Button>
         }
       />
+      <Workload />
       <Paper>
         {query.isPending ? (
           <Loading />

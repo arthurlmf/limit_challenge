@@ -1,4 +1,6 @@
 'use client';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Alert, FormControlLabel, MenuItem, Switch, Typography } from '@mui/material';
 import { fleetApi } from '@/lib/fleet-api';
 import { useFleetMutation, useMechanics, useOffices } from '@/lib/hooks';
@@ -90,12 +92,36 @@ export function MechanicForm({
     </FormDialog>
   );
 }
+const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
+function useDuplicateCheck(vehicle?: Vehicle | VehicleDetail) {
+  const [probe, setProbe] = useState({
+    vin: vehicle?.vin ?? '',
+    license_plate: vehicle?.license_plate ?? '',
+    active: vehicle?.active ?? true,
+  });
+  const params = { ...probe, exclude_id: vehicle?.id };
+  const conflicts = useQuery({
+    // Outside the 'fleet' prefix: refetching after a save would flag the saved vehicle itself.
+    queryKey: ['duplicate-check', params],
+    queryFn: ({ signal }) => fleetApi.duplicateCheck(params, signal),
+    enabled: VIN_PATTERN.test(probe.vin) && probe.license_plate !== '',
+  });
+  const update = (field: 'vin' | 'license_plate', value: string) =>
+    setProbe((current) => ({ ...current, [field]: value.trim().toUpperCase() }));
+  return {
+    update,
+    setActive: (active: boolean) => setProbe((current) => ({ ...current, active })),
+    has: (field: 'vin' | 'license_plate') =>
+      Boolean(conflicts.isSuccess && conflicts.data.includes(field)),
+  };
+}
 export function VehicleForm({
   vehicle,
   onClose,
   onSaved,
 }: DialogProps & { vehicle?: Vehicle | VehicleDetail }) {
   const offices = useOffices();
+  const duplicates = useDuplicateCheck(vehicle);
   const save = useFleetMutation(
     (data: FormData) =>
       fleetApi.saveVehicle(
@@ -141,7 +167,10 @@ export function VehicleForm({
             required
             defaultValue={vehicle?.vin}
             errorSource={save.error}
-            helperText="17 characters; letters I, O and Q are excluded."
+            onBlur={(event) => duplicates.update('vin', event.target.value)}
+            {...(duplicates.has('vin')
+              ? { error: true, helperText: 'Another vehicle is already registered with this VIN.' }
+              : { helperText: '17 characters; letters I, O and Q are excluded.' })}
             inputProps={{ minLength: 17, maxLength: 17 }}
           />
           <Field
@@ -150,6 +179,10 @@ export function VehicleForm({
             required
             defaultValue={vehicle?.license_plate}
             errorSource={save.error}
+            onBlur={(event) => duplicates.update('license_plate', event.target.value)}
+            {...(duplicates.has('license_plate')
+              ? { error: true, helperText: 'An active vehicle already uses this plate.' }
+              : {})}
             inputProps={{ maxLength: 20 }}
           />
           <Field
@@ -192,7 +225,13 @@ export function VehicleForm({
             ))}
           </Field>
           <FormControlLabel
-            control={<Switch name="active" defaultChecked={vehicle?.active ?? true} />}
+            control={
+              <Switch
+                name="active"
+                defaultChecked={vehicle?.active ?? true}
+                onChange={(event) => duplicates.setActive(event.target.checked)}
+              />
+            }
             label="Active vehicle"
           />
         </>

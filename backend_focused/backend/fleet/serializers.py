@@ -158,6 +158,11 @@ class VehicleSearchSerializer(serializers.Serializer):
 class AssignVehicleSerializer(serializers.Serializer):
     office = serializers.PrimaryKeyRelatedField(queryset=Office.objects.all())
 
+    def validate_office(self, office):
+        if office.pk == self.context["vehicle"].office_id:
+            raise serializers.ValidationError("The vehicle is already assigned to this office.")
+        return office
+
 
 class DuplicateCheckSerializer(serializers.Serializer):
     vin = VINField(max_length=17)
