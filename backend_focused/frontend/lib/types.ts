@@ -41,6 +41,18 @@ export interface VehicleDetail extends Omit<Vehicle, 'office'> {
 export interface DueVehicle extends Vehicle {
   last_maintenance: string | null;
 }
+export interface OfficeSummary extends Office {
+  active_vehicle_count: number;
+  maintenance_cost_last_year: string;
+  last_maintenance: string | null;
+}
+export interface MechanicWorkload {
+  id: number;
+  name: string;
+  maintenance_count: number;
+  total_maintenance_cost: string;
+}
+export type VehicleConflict = 'vin' | 'license_plate';
 export type OfficeInput = Omit<Office, 'id'>;
 export type MechanicInput = Omit<Mechanic, 'id'>;
 export type VehicleInput = Omit<Vehicle, 'id'>;

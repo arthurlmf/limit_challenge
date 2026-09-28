@@ -9,8 +9,7 @@
     "lint": "eslint",
     "format": "prettier --check .",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit",
-    "demo": "playwright test --config playwright.demo.config.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db.models import Prefetch
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -29,6 +29,8 @@ from .serializers import (
 
 
 class CRUDViewSet(viewsets.ModelViewSet):
+    # The savepoint keeps an enclosing transaction usable when a uniqueness race
+    # raises IntegrityError, so the exception handler can still return a 409.
     @transaction.atomic
     def perform_create(self, serializer):
         serializer.save()
@@ -48,7 +50,7 @@ class OfficeViewSet(CRUDViewSet):
     queryset = Office.objects.all()
     serializer_class = OfficeSerializer
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], pagination_class=None)
     def summary(self, request):
         return self.collection_response(office_summary(), OfficeSummarySerializer)
 
@@ -57,7 +59,7 @@ class MechanicViewSet(CRUDViewSet):
     queryset = Mechanic.objects.all()
     serializer_class = MechanicSerializer
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], pagination_class=None)
     def workload(self, request):
         return self.collection_response(mechanic_workload(), MechanicWorkloadSerializer)
 
@@ -100,21 +102,15 @@ class VehicleViewSet(CRUDViewSet):
         return self.collection_response(history, MaintenanceHistorySerializer)
 
     @action(detail=True, methods=["post"], url_path="assign-office")
-    @transaction.atomic
     def assign_office(self, request, pk=None):
         vehicle = self.get_object()
-        serializer = AssignVehicleSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        # A single-column UPDATE avoids overwriting unrelated concurrent vehicle edits.
-        updated = Vehicle.objects.filter(pk=vehicle.pk).update(
-            office=serializer.validated_data["office"]
+        serializer = AssignVehicleSerializer(
+            data=request.data, context={"vehicle": vehicle}
         )
-        if not updated:
-            return Response(
-                {"detail": "Vehicle no longer exists."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        vehicle.refresh_from_db()
+        serializer.is_valid(raise_exception=True)
+        vehicle.office = serializer.validated_data["office"]
+        # Writing only this column avoids overwriting unrelated concurrent vehicle edits.
+        vehicle.save(update_fields=["office"])
         return Response(VehicleSerializer(vehicle).data)
 
     @action(detail=False, methods=["get"], url_path="needing-maintenance")

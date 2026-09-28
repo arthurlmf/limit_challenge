@@ -13,14 +13,15 @@ All paths below are relative to `/api/` and have trailing slashes.
 | GET | `vehicles/` | Vehicle search through any combination of query parameters below |
 | GET | `vehicles/<id>/` | Vehicle with nested office and complete `maintenance_records`, each with nested mechanic |
 | GET | `vehicles/<id>/maintenance-history/` | Paginated history, newest first, each with nested mechanic |
-| POST | `vehicles/<id>/assign-office/` | Body: `{"office": 2}`; updates the office only and returns the vehicle |
+| POST | `vehicles/<id>/assign-office/` | Body: `{"office": 2}`; updates the office only and returns the vehicle. Assigning the current office returns 400 |
 | GET | `mechanics/workload/` | `id`, `name`, `maintenance_count`, `total_maintenance_cost`, busiest first |
 | GET | `vehicles/needing-maintenance/` | Active never-maintained/overdue vehicles with `last_maintenance` |
 | GET | `vehicles/duplicate-check/` | VIN/plate conflict preflight; returns `{"conflicts": [...]}` |
 
-Collection responses use DRF pagination, including reports and nested history:
+Resource lists, vehicle search, maintenance history and maintenance due use DRF pagination:
 `{"count": 40, "next": "...", "previous": null, "results": [...]}`.
-Use `?page=2` to advance; pages contain 10 rows. The vehicle detail endpoint deliberately
+Use `?page=2` to advance; pages contain 10 rows. The office summary and mechanic workload
+return plain arrays with one row per office or mechanic. The vehicle detail endpoint deliberately
 includes **all** maintenance records to meet the specification. Decimal costs are
 JSON strings (for example `"125.50"`) to preserve decimal precision. Ordinary CRUD
 write bodies use foreign-key IDs for `office`, `vehicle` and `mechanic`.
@@ -31,7 +32,7 @@ Vehicle search accepts:
 | --- | --- |
 | `office` | Positive office ID |
 | `active` | `true` or `false`; omitted means both |
-| `make`, `model` | Case-insensitive exact matches |
+| `make`, `model` | Case-insensitive partial matches (`ford` matches `Ford`, `sprint` matches `Sprinter`) |
 | `maintenance_date_from`, `maintenance_date_to` | Inclusive ISO dates (`YYYY-MM-DD`); either bound may be omitted |
 | `mechanic_certification_number` | Case-normalized exact certification match |
 

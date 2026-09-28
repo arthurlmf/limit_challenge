@@ -6,7 +6,10 @@ import type {
   Vehicle,
   VehicleDetail,
   DueVehicle,
+  MechanicWorkload,
+  OfficeSummary,
   Page,
+  VehicleConflict,
   OfficeInput,
   MechanicInput,
   VehicleInput,
@@ -40,8 +43,21 @@ export const fleetApi = {
     list<DueVehicle>('vehicles/needing-maintenance', { page }, signal),
   detail: async (id: string, signal?: AbortSignal) =>
     (await apiClient.get<VehicleDetail>(`vehicles/${id}/`, { signal })).data,
-  offices: (page: number, signal?: AbortSignal) => list<Office>('offices', { page }, signal),
+  officeSummary: async (signal?: AbortSignal) =>
+    (await apiClient.get<OfficeSummary[]>('offices/summary/', { signal })).data,
   mechanics: (page: number, signal?: AbortSignal) => list<Mechanic>('mechanics', { page }, signal),
+  workload: async (signal?: AbortSignal) =>
+    (await apiClient.get<MechanicWorkload[]>('mechanics/workload/', { signal })).data,
+  duplicateCheck: async (
+    params: { vin: string; license_plate: string; active: boolean; exclude_id?: number },
+    signal?: AbortSignal,
+  ) =>
+    (
+      await apiClient.get<{ conflicts: VehicleConflict[] }>('vehicles/duplicate-check/', {
+        params,
+        signal,
+      })
+    ).data.conflicts,
   officeOptions: (signal?: AbortSignal) => references<Office>('offices', signal),
   mechanicOptions: (signal?: AbortSignal) => references<Mechanic>('mechanics', signal),
   saveOffice: (data: OfficeInput, id?: number) => save('offices', data, id),

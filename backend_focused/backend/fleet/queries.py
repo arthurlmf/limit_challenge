@@ -16,7 +16,7 @@ def search_vehicles(queryset, filters):
             queryset = queryset.filter(**{field: filters[field]})
     for field in ("make", "model"):
         if field in filters:
-            queryset = queryset.filter(**{f"{field}__iexact": filters[field]})
+            queryset = queryset.filter(**{f"{field}__icontains": filters[field]})
 
     history_filters = {}
     for parameter, lookup in (

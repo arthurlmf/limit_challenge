@@ -75,6 +75,12 @@ class FleetAPITests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         return response.data["results"]
 
+    def report(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsInstance(response.data, list)
+        return response.data
+
     def test_crud_for_all_resources(self):
         cases = [
             ("offices", {"name": "East", "city": "Boston"}, {"city": "Miami"}),
@@ -317,6 +323,11 @@ class FleetAPITests(APITestCase):
         params["active"] = "false"
         self.assertEqual(self.results("/api/vehicles/", params), [])
 
+    def test_make_and_model_search_is_partial(self):
+        self.new_vehicle()
+        rows = self.results("/api/vehicles/", {"make": "hon", "model": "CORD"})
+        self.assertEqual([row["id"] for row in rows], [self.vehicle.pk])
+
     def test_search_predicates_must_match_same_maintenance_record(self):
         other = Mechanic.objects.create(name="Lee", certification_number="CERT-2")
         self.record(age=100, mechanic=self.mechanic)
@@ -369,8 +380,8 @@ class FleetAPITests(APITestCase):
         self.record(vehicle=inactive, age=2, cost="5.00")
         self.record(age=365, cost="7.00")
         self.record(age=366, cost="999.00")
-        with self.assertNumQueries(2):
-            rows = self.results("/api/offices/summary/")
+        with self.assertNumQueries(1):
+            rows = self.report("/api/offices/summary/")
         central, empty = rows
         self.assertEqual(central["active_vehicle_count"], 1)
         self.assertEqual(
@@ -386,14 +397,14 @@ class FleetAPITests(APITestCase):
         record.maintenance_date = date(2023, 2, 28)
         record.save()
         with patch("django.utils.timezone.localdate", return_value=date(2024, 2, 29)):
-            rows = self.results("/api/offices/summary/")
+            rows = self.report("/api/offices/summary/")
         self.assertEqual(
             Decimal(rows[0]["maintenance_cost_last_year"]), Decimal("5.00")
         )
 
     def test_summary_latest_date_includes_history_older_than_a_year(self):
         old = self.record(age=500)
-        row = self.results("/api/offices/summary/")[0]
+        row = self.report("/api/offices/summary/")[0]
         self.assertEqual(row["last_maintenance"], old.maintenance_date.isoformat())
         self.assertEqual(Decimal(row["maintenance_cost_last_year"]), 0)
 
@@ -440,17 +451,15 @@ class FleetAPITests(APITestCase):
         record = self.record()
         before = Vehicle.objects.values().get(pk=self.vehicle.pk)
         url = f"/api/vehicles/{self.vehicle.pk}/assign-office/"
-        for _ in range(2):
-            response = self.client.post(
-                url, {"office": self.other_office.pk}, format="json"
-            )
-            self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.post(url, {"office": self.other_office.pk}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["office"], self.other_office.pk)
         after = Vehicle.objects.values().get(pk=self.vehicle.pk)
         self.assertEqual(after, before | {"office_id": self.other_office.pk})
         self.assertEqual(
             MaintenanceRecord.objects.get(pk=record.pk).vehicle_id, self.vehicle.pk
         )
-        rows = self.results("/api/offices/summary/")
+        rows = self.report("/api/offices/summary/")
         self.assertEqual(Decimal(rows[0]["maintenance_cost_last_year"]), 0)
         self.assertEqual(
             Decimal(rows[1]["maintenance_cost_last_year"]), Decimal("100.00")
@@ -462,6 +471,9 @@ class FleetAPITests(APITestCase):
             self.assertEqual(
                 self.client.post(url, payload, format="json").status_code, 400
             )
+        same_office = self.client.post(url, {"office": self.office.pk}, format="json")
+        self.assertEqual(same_office.status_code, 400)
+        self.assertIn("office", same_office.data)
         self.assertEqual(
             self.client.post(
                 "/api/vehicles/9999/assign-office/",
@@ -482,8 +494,8 @@ class FleetAPITests(APITestCase):
         self.record(mechanic=busy, cost="20.00")
         self.record(age=(TODAY - date(TODAY.year, 1, 1)).days, cost="5.00")
         self.record(age=(TODAY - date(TODAY.year - 1, 12, 31)).days, cost="999.00")
-        with self.assertNumQueries(2):
-            rows = self.results("/api/mechanics/workload/")
+        with self.assertNumQueries(1):
+            rows = self.report("/api/mechanics/workload/")
         self.assertEqual(
             [row["id"] for row in rows], [busy.pk, self.mechanic.pk, idle.pk]
         )
@@ -557,6 +569,8 @@ class FleetAPITests(APITestCase):
         for expected in (initial + 8, initial + 16):
             call_command("seed_fleet", vehicles=8, seed=1, stdout=StringIO())
             self.assertEqual(Vehicle.objects.count(), expected)
+        self.assertEqual(Office.objects.count(), 2 + 3)
+        self.assertEqual(Vehicle.objects.values("vin").distinct().count(), initial + 16)
         self.assertTrue(Vehicle.objects.filter(active=False).exists())
         self.assertTrue(
             Vehicle.objects.filter(maintenance_records__isnull=True).exists()
