@@ -5,13 +5,13 @@ It supports vehicle, office, mechanic and maintenance management, including vehi
 search with duplicate detection, office transfers, an office summary, mechanic workload
 and a maintenance-due view.
 
-[Watch the demo (under 1 minute)](docs/fleet-demo.webm) · [API reference](docs/API.md) ·
+[Watch the demo](docs/fleet-demo.webm) · [API reference](docs/API.md) ·
 [Original challenge](CHALLENGE.md)
 
 ## Run locally
 
 Requires Python 3.10+ supported by Django 5.2 and Node.js 20.9+.
-The backend uses SQLite. Authentication is not implemented, as allowed by the brief.
+The backend uses SQLite. Authentication is not implemented.
 
 From the repository root, start the backend:
 
