@@ -2,6 +2,7 @@ import random
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -42,12 +43,18 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--vehicles", type=int, default=40)
         parser.add_argument("--seed", type=int, default=42)
+        parser.add_argument("--username", default="demo")
+        parser.add_argument("--password", default="demo-password")
 
     @transaction.atomic
     def handle(self, *args, **options):
         count = options["vehicles"]
         if count < 1:
             raise CommandError("--vehicles must be a positive integer.")
+        User = get_user_model()
+        # An existing user keeps its password so reruns never lock anyone out.
+        if not User.objects.filter(username=options["username"]).exists():
+            User.objects.create_user(options["username"], password=options["password"])
         rng = random.Random(options["seed"])
         fake = Faker()
         fake.seed_instance(options["seed"])
@@ -108,6 +115,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Using {len(offices)} offices; created 5 mechanics, {count} vehicles "
-                f"and {len(records)} maintenance records."
+                f"and {len(records)} maintenance records. Sign in as "
+                f"'{options['username']}'."
             )
         )

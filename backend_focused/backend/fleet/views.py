@@ -3,6 +3,7 @@ from django.db.models import Prefetch
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import MaintenanceRecord, Mechanic, Office, Vehicle
 from .queries import (
@@ -26,6 +27,11 @@ from .serializers import (
     VehicleSerializer,
     vehicle_conflicts,
 )
+
+
+class CurrentUserView(APIView):
+    def get(self, request):
+        return Response({"id": request.user.pk, "username": request.user.get_username()})
 
 
 class CRUDViewSet(viewsets.ModelViewSet):

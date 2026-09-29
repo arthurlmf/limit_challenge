@@ -3,6 +3,7 @@ import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import { PropsWithChildren, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axios from 'axios';
+import { AuthProvider } from '@/lib/auth';
 const theme = createTheme({
   palette: {
     primary: { main: '#24594b' },
@@ -45,10 +46,12 @@ export default function Providers({ children }: PropsWithChildren) {
   );
   return (
     <QueryClientProvider client={client}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        {children}
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {children}
+        </ThemeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

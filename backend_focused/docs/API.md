@@ -5,6 +5,32 @@
 
 All paths below are relative to `/api/` and have trailing slashes.
 
+## Authentication
+
+Every endpoint except `auth/token/`, `auth/token/refresh/` and `auth/logout/` requires
+`Authorization: Bearer <access token>`. Requests without a valid token return 401.
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| POST | `auth/token/` | `{"username", "password"}` | `{"access", "refresh"}`; wrong credentials return 401 |
+| POST | `auth/token/refresh/` | `{"refresh"}` | New `{"access", "refresh"}`; the old refresh token is revoked |
+| POST | `auth/logout/` | `{"refresh"}` | 200; the refresh token is revoked |
+| GET | `auth/me/` | none | `{"id", "username"}` of the signed-in user |
+
+Access tokens expire after 15 minutes and refresh tokens after one day. Each refresh
+token works once. The seeded account is `demo` / `demo-password`.
+
+```bash
+TOKEN=$(curl -s -X POST 'http://127.0.0.1:8000/api/auth/token/' \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo","password":"demo-password"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["access"])')
+AUTH="Authorization: Bearer $TOKEN"
+```
+
+The examples below send `-H "$AUTH"`.
+
+## Endpoints
+
 | Method | Path | Behavior |
 | --- | --- | --- |
 | GET, POST | `offices/`, `vehicles/`, `mechanics/`, `maintenance-records/` | List or create a resource |
@@ -48,22 +74,22 @@ vehicle and an existing vehicle are active. This endpoint is advisory: constrain
 on the actual create/update enforce correctness under concurrent writes.
 
 ```bash
-curl 'http://127.0.0.1:8000/api/offices/summary/'
-curl 'http://127.0.0.1:8000/api/vehicles/?active=true&make=Ford'
-curl 'http://127.0.0.1:8000/api/vehicles/?maintenance_date_from=2026-01-01&maintenance_date_to=2026-09-26'
-curl 'http://127.0.0.1:8000/api/vehicles/1/'
-curl 'http://127.0.0.1:8000/api/vehicles/1/maintenance-history/'
-curl -X POST 'http://127.0.0.1:8000/api/vehicles/1/assign-office/' \
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/offices/summary/'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/?active=true&make=Ford'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/?maintenance_date_from=2026-01-01&maintenance_date_to=2026-09-26'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/1/'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/1/maintenance-history/'
+curl -H "$AUTH" -X POST 'http://127.0.0.1:8000/api/vehicles/1/assign-office/' \
   -H 'Content-Type: application/json' -d '{"office": 2}'
-curl 'http://127.0.0.1:8000/api/vehicles/needing-maintenance/'
-curl 'http://127.0.0.1:8000/api/mechanics/workload/'
-curl 'http://127.0.0.1:8000/api/vehicles/duplicate-check/?vin=1HGCM82633A004352&license_plate=ABC-123'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/needing-maintenance/'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/mechanics/workload/'
+curl -H "$AUTH" 'http://127.0.0.1:8000/api/vehicles/duplicate-check/?vin=1HGCM82633A004352&license_plate=ABC-123'
 ```
 
 IDs in these examples assume a freshly seeded database. To create a vehicle:
 
 ```bash
-curl -X POST 'http://127.0.0.1:8000/api/vehicles/' \
+curl -H "$AUTH" -X POST 'http://127.0.0.1:8000/api/vehicles/' \
   -H 'Content-Type: application/json' \
   -d '{"vin":"1HGCM82633A004352","license_plate":"ABC-123","make":"Honda","model":"Accord","year":2020,"office":1,"active":true}'
 ```
@@ -103,6 +129,7 @@ All costs use one company currency; the API does not specify its code.
 | 201 | Resource created |
 | 204 | Resource deleted |
 | 400 | Invalid input, including a duplicate found during validation |
+| 401 | Missing, invalid or expired token, or wrong credentials |
 | 404 | Resource or requested page not found |
 | 409 | Protected deletion or a recognized uniqueness conflict during a write |
 

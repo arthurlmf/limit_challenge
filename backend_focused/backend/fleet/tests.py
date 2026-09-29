@@ -3,6 +3,7 @@ from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, transaction
@@ -12,11 +13,76 @@ from .exceptions import exception_handler
 from .models import MaintenanceRecord, Mechanic, Office, Vehicle
 
 TODAY = date(2026, 9, 26)
+User = get_user_model()
+
+
+class AuthTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("tester", password="secret-pass")
+
+    def obtain(self, password="secret-pass"):
+        return self.client.post(
+            "/api/auth/token/",
+            {"username": "tester", "password": password},
+            format="json",
+        )
+
+    def test_every_endpoint_requires_authentication(self):
+        for url in (
+            "/api/offices/",
+            "/api/vehicles/",
+            "/api/mechanics/workload/",
+            "/api/vehicles/duplicate-check/",
+            "/api/auth/me/",
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 401)
+
+    def test_wrong_credentials_are_rejected(self):
+        response = self.obtain(password="wrong")
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("detail", response.data)
+
+    def test_access_token_grants_access_and_identifies_user(self):
+        tokens = self.obtain().data
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        self.assertEqual(self.client.get("/api/offices/").status_code, 200)
+        self.assertEqual(
+            self.client.get("/api/auth/me/").data,
+            {"id": self.user.pk, "username": "tester"},
+        )
+        self.client.credentials(HTTP_AUTHORIZATION="Bearer not-a-token")
+        self.assertEqual(self.client.get("/api/offices/").status_code, 401)
+
+    def test_refresh_rotates_and_old_refresh_token_is_revoked(self):
+        refresh = self.obtain().data["refresh"]
+        rotated = self.client.post(
+            "/api/auth/token/refresh/", {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(rotated.status_code, 200)
+        self.assertNotEqual(rotated.data["refresh"], refresh)
+        reused = self.client.post(
+            "/api/auth/token/refresh/", {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(reused.status_code, 401)
+
+    def test_logout_revokes_refresh_token(self):
+        refresh = self.obtain().data["refresh"]
+        logout = self.client.post("/api/auth/logout/", {"refresh": refresh}, format="json")
+        self.assertEqual(logout.status_code, 200)
+        self.assertEqual(
+            self.client.post(
+                "/api/auth/token/refresh/", {"refresh": refresh}, format="json"
+            ).status_code,
+            401,
+        )
 
 
 class FleetAPITests(APITestCase):
     @classmethod
     def setUpTestData(cls):
+        cls.user = User.objects.create_user("tester", password="secret-pass")
         cls.office = Office.objects.create(name="Central", city="Austin")
         cls.other_office = Office.objects.create(name="North", city="Seattle")
         cls.mechanic = Mechanic.objects.create(
@@ -32,6 +98,7 @@ class FleetAPITests(APITestCase):
         )
 
     def setUp(self):
+        self.client.force_authenticate(self.user)
         clock = patch("django.utils.timezone.localdate", return_value=TODAY)
         clock.start()
         self.addCleanup(clock.stop)
@@ -570,6 +637,7 @@ class FleetAPITests(APITestCase):
             call_command("seed_fleet", vehicles=8, seed=1, stdout=StringIO())
             self.assertEqual(Vehicle.objects.count(), expected)
         self.assertEqual(Office.objects.count(), 2 + 3)
+        self.assertTrue(User.objects.get(username="demo").check_password("demo-password"))
         self.assertEqual(Vehicle.objects.values("vin").distinct().count(), initial + 16)
         self.assertTrue(Vehicle.objects.filter(active=False).exists())
         self.assertTrue(

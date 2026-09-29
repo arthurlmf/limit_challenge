@@ -3,6 +3,7 @@
 Next.js and Material UI interface for the fleet API. Includes vehicle search,
 CRUD for all four resources, maintenance history, office transfers, maintenance due,
 the office summary, mechanic workload and duplicate VIN/plate warnings in the vehicle form.
+Every page except `/login` requires signing in (seeded account: `demo` / `demo-password`).
 
 ## Run
 
@@ -39,7 +40,7 @@ That environment needs the backend requirements installed. To select another Pyt
 FLEET_TEST_PYTHON=/absolute/path/to/python npm run test:e2e
 ```
 
-Specs live in `tests/e2e/` and cover CRUD, URL filters that survive a reload, server
+Specs live in `tests/e2e/` and cover sign-in redirects, logout, silent token refresh, CRUD, URL filters that survive a reload, server
 validation errors, duplicate warnings, protected deletion, the office summary, mechanic
 workload, maintenance due, network recovery and mobile layout. Failure screenshots,
 videos and traces go to `test-results/`. Open the report with `npx playwright show-report`.
@@ -51,6 +52,12 @@ videos and traces go to `test-results/`. Open the report with `npx playwright sh
 data; applied filters and page numbers live in the URL; unsaved values stay in forms.
 Writes invalidate all fleet queries. Office and mechanic selectors fetch all pages,
 which is suitable for the small reference datasets in this challenge.
+
+Authentication lives in `lib/api-client.ts` and `lib/auth.tsx`. The Axios client
+attaches the access token, and on a 401 performs a single shared refresh before retrying
+the request. If the refresh fails, the session ends and `Shell` redirects to
+`/login?next=<current page>`. Only same-origin `next` paths are followed. Logging out
+revokes the refresh token and clears the query cache.
 
 ## Demo
 
